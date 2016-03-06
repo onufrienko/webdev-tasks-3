@@ -66,8 +66,18 @@ describe('Testing flow library', () => {
             expect(cb).to.be.calledOnce;
         });
 
-        it.skip('should call functions parallely', () => {
-            //???
+        it('should call functions parallely', () => {
+            var func1 = sinon.spy((next) => {
+                setTimeout(next(null, 1), 2500);
+            });
+            var func2 = sinon.spy((next) => {
+                setTimeout(next(null, 2), 2500);
+            });
+            var cb = sinon.spy((err, result) => {
+                expect(Date.now() - startTime).to.be.below(3000);
+            });
+            var startTime = Date.now();
+            lib.parallel([func1, func2], cb);
         });
 
         it('should call functions only once and return a correct result', () => {
