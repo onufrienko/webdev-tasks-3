@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "mocha test/* && npm run lint",
+    "lint": "jscs ."
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "jscs": "^2.2.1",
+    "mocha": "^2.4.5",
+    "mock-fs": "^3.7.0",
+    "sinon": "^1.17.3"
+  }
+}
