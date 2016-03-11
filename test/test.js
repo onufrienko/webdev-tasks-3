@@ -1,151 +1,207 @@
 'use strict';
 
-const sinon = require('sinon');
-const expect = require('chai').expect;
 const lib = require('../lib/flow');
+const mock = require('mock-fs');
+const fs = require('fs');
+const expect = require('chai').expect;
+const sinon = require('sinon');
 
+var err = 'fatal error';
+var directory = './cats/';
 
 describe('Testing flow library', () => {
-    describe('Map', () => {
-        it('should directly return callback', () => {
-            var func = sinon.spy();
-            var cb = sinon.spy((err, result) => {
-                expect(err).to.be.a('null');
-                expect(result).to.be.a('array');
-                expect(result.length === 0).is.true;
-            });
-
-            lib.map([], func, cb);
-            expect(cb).to.be.calledOnce;
-            expect(cb.calledWith(null, [])).is.true;
-            expect(func.notCalled).is.true;
-        });
-
-        it('should return callback if got an error', () => {
-            var err = 'Error!';
-            var func = sinon.spy((value, next) => {
-                next(err, null);
-            });
-            var cb = sinon.spy((err, result) => {
-                expect(result).to.be.a('null');
-                expect(err).to.be.deep.equal(err);
-            });
-
-            lib.map(['foo, bar'], func, cb);
-            expect(cb).to.be.calledOnce;
-            expect(func).to.be.calledOnce;
-        });
-
-        it('should return correct result', () => {
-            var values = [1, 2];
-            var func = sinon.spy((value, next) => {
-                next(null, value);
-            });
-            var cb = sinon.spy((err, result) => {
-                expect(err).to.be.a('null');
-                expect(result).to.be.a('array');
-                expect(result.length === 2).is.true;
-                expect(result[0] === 1).is.true;
-                expect(result[1] === 2);
-            });
-
-            lib.map(values, func, cb);
-            expect(cb).to.be.calledOnce;
-            expect(func.callCount === 2).is.true;
-        });
-    });
-    describe('Parallel', () => {
-        it('should directly return callback', () => {
-            var cb = sinon.spy((err, result) => {
-                expect(err).to.be.a('null');
-                expect(result).to.be.a('array');
-                expect(result.length === 0).is.true;
-            });
-
-            lib.parallel([], cb);
-            expect(cb).to.be.calledOnce;
-        });
-
-        it('should call functions parallely', () => {
-            var func1 = sinon.spy((next) => {
-                setTimeout(next(null, 1), 2500);
-            });
-            var func2 = sinon.spy((next) => {
-                setTimeout(next(null, 2), 2500);
-            });
-            var cb = sinon.spy((err, result) => {
-                expect(Date.now() - startTime).to.be.below(3000);
-            });
-            var startTime = Date.now();
-            lib.parallel([func1, func2], cb);
-        });
-
-        it('should call functions only once and return a correct result', () => {
-            var func1 = sinon.spy((next) => {
-                next(null, 1);
-            });
-            var func2 = sinon.spy((next) => {
-                next(null, 2);
-            });
-            var cb = sinon.spy((err, result) => {
-                expect(err).to.be.a('null');
-                expect(result).to.deep.equal([1, 2]);
-            });
-
-            lib.parallel([func1, func2], cb);
-            expect(func1).to.be.calledOnce;
-            expect(func2).to.be.calledOnce;
-            expect(cb).to.be.calledOnce;
+    before(() => {
+        mock({
+            './cats': {
+                'barsik.json': JSON.stringify({
+                    name: 'barsik',
+                    price: 5000
+                }),
+                'batonchik.json': JSON.stringify({
+                    name: 'batonchik',
+                    price: 99000
+                }),
+                'murzic.json': JSON.stringify({
+                    name: 'murzik',
+                    price: 7000
+                }),
+                'graf.json': ''
+            }
         });
     });
     describe('Serial', () => {
-        it('should directly return callback', () => {
-            var cb = sinon.spy((err, result) => {
-                expect(err).to.be.a('null');
-                expect(result).to.be.a('array');
-                expect(result.length === 0).is.true;
+        it('should call functions serially', (done) => {
+            lib.serial([
+                function (next) {
+                    fs.readdir(directory, (error, data) => {
+                        next(error, data);
+                    });
+                },
+                function (data, next) {
+                    next(null, data.length);
+                }
+            ], function (error, result) {
+                expect(typeof result).to.be.equal('number');
+                expect(result).to.be.equal(4);
+                expect(error).to.be.equal(null);
+                done();
             });
-
-            lib.serial([], cb);
-            expect(cb).to.be.calledOnce;
-            expect(cb.calledWith(null, [])).is.true;
         });
-
-        it('should call functions serially and return a correct result', () => {
-            var func1 = sinon.spy((next) => {
-                next(null, 1);
+        it('should not call second function if first function got an error', (done) => {
+            var secFunc = sinon.spy((data, next) => {
+                next(null, 'hola');
             });
-            var func2 = sinon.spy((data, next) => {
-                next(null, 2 * data);
+            lib.serial([
+                function (next) {
+                    next(err, null);
+                },
+                secFunc
+            ], (error, result) => {
+                expect(secFunc).not.to.be.called;
+                expect(error).to.be.deep.equal(err);
+                expect(result).to.be.equal(null);
+                done();
             });
-            var func3 = sinon.spy((data, next) => {
-                next(null, data + 3);
-            });
-            var cb = sinon.spy((err, result) => {});
-
-            lib.serial([func1, func2, func3], cb);
-            expect(cb).to.be.calledOnce;
-            expect(cb.calledWith(null, 5)).is.true;
-            expect(func1).to.be.calledOnce;
-            expect(func2).to.be.calledOnce;
-            expect(func2.calledAfter(func1)).is.true;
         });
-
-        it('should return callback if got an error', () => {
-            var err = 'Error!';
-            var func1 = sinon.spy((next) => {
-                next(err, 1);
+        it('should return callback if got no functions', (done) => {
+            lib.serial([], (error, result) => {
+                expect(error).to.be.equal(null);
+                expect(result)
+                    .to.be.a('array')
+                    .and.to.have.lengthOf(0);
+                done();
             });
-            var func2 = sinon.spy((data, next) => {
-                next(null, 2);
-            });
-            var cb = sinon.spy((err, result) => {});
-
-            lib.serial([func1, func2], cb);
-            expect(cb).to.be.calledOnce;
-            expect(cb.calledWith(err, 1)).is.true;
-            expect(func1).to.be.calledOnce;
-            expect(func2).not.to.be.calledOnce;
         });
+    });
+    describe('Parallel', () => {
+        it('should run functions concurrently', (done) => {
+            var delay = 300;
+            var limit = delay + 200;
+            var startTime = Date.now();
+            lib.parallel([
+                function (next) {
+                    fs.readFile('./cats/barsik.json', (error, data) => {
+                        var parsedData = JSON.parse(data);
+                        setTimeout(() => {
+                            next(null, parsedData.name);
+                        }, delay);
+                    });
+                },
+                function (next) {
+                    fs.readFile('./cats/batonchik.json', (error, data) => {
+                        var parsedData = JSON.parse(data);
+                        setTimeout(() => {
+                            next(null, parsedData.name);
+                        }, delay);
+                    });
+                }
+            ], (error, result) => {
+                expect(Date.now() - startTime)
+                    .to.be.below(limit)
+                    .and.to.be.above(delay);
+                done();
+            });
+        });
+        it('should return correct result', (done) => {
+            lib.parallel([
+                function (next) {
+                    fs.readFile('./cats/barsik.json', (error, data) => {
+                        next(null, JSON.parse(data).price);
+                    });
+                },
+                function (next) {
+                    fs.readFile('./cats/batonchik.json', (error, data) => {
+                        next(null, JSON.parse(data).price);
+                    });
+                }
+            ], (error, result) => {
+                expect(error).to.be.equal(null);
+                expect(result)
+                    .to.be.a('array')
+                    .and.to.have.members([99000, 5000]);
+                done();
+            });
+        });
+        it('should return error if any function got an error', (done) => {
+            lib.parallel([
+                function (next) {
+                    fs.readFile('./cats/barsik.json', (error, data) => {
+                        next(error, data);
+                    });
+                },
+                function (next) {
+                    next(err, null);
+                }
+            ], (error, result) => {
+                expect(error).to.be.deep.equal(err);
+                expect(result).to.be.equal(null);
+                done();
+            });
+        });
+        it('should return callback if got no functions', (done) => {
+            lib.parallel([], (error, result) => {
+                expect(error).to.be.equal(null);
+                expect(result)
+                    .to.be.a('array')
+                    .and.to.have.lengthOf(0);
+                done();
+            });
+        });
+    });
+    describe('Map', () => {
+        it('should return callback if got no values', (done) => {
+            var func = sinon.spy(() => {});
+            lib.map([], func, (error, result) => {
+                expect(error).to.be.equal(null);
+                expect(result)
+                    .to.be.a('array')
+                    .and.to.have.lengthOf(0);
+                done();
+            });
+        });
+        it('should return correct result', (done) => {
+            var files = fs.readdirSync(directory);
+            var func = function (name, next) {
+                var fileName = directory + name;
+                fs.readFile(fileName, (error, data) => {
+                    data.length != 0 ?
+                        next(null, JSON.parse(data).name) : next(null, '');
+                });
+            };
+            lib.map(files, func, (error, result) => {
+                expect(error).to.be.equal(null);
+                expect(result)
+                    .to.be.a('array')
+                    .and.to.have.lengthOf(4)
+                    .and.to.have.members(['barsik', 'batonchik', '', 'murzik']);
+                done();
+            });
+        });
+        it('should call function 4 times', (done) => {
+            var files = fs.readdirSync(directory);
+            var func = sinon.spy((name, next) => {
+                var fileName = directory + name;
+                fs.readFile(fileName, (error, data) => {
+                    next(null, String(data));
+                });
+            });
+            lib.map(files, func, (error, result) => {
+                expect(func.callCount === files.length).is.true;
+                done();
+            });
+        });
+        it('should return error if got an error', (done) => {
+            var func = sinon.spy((value, next) => {
+                next(err, null);
+            });
+            lib.map([1, 2, 3], func, (error, result) => {
+                expect(error).to.be.deep.equal(err);
+                expect(result).to.be.equal(null);
+                done();
+            });
+        });
+    });
+    after(() => {
+        mock.restore();
     });
 });
