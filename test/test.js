@@ -305,32 +305,6 @@ describe('Testing flow library', () => {
             var limit = delay * 3 + 50;
             var startTime = Date.now();
             var limitTime;
-            var functions = [
-                function (next) {
-                    fs.readFile('./cats/barsik.json', (error, data) => {
-                        var parsedData = JSON.parse(data);
-                        setTimeout(() => {
-                            next(null, parsedData.name);
-                        }, delay);
-                    });
-                },
-                function (next) {
-                    fs.readFile('./cats/batonchik.json', (error, data) => {
-                        var parsedData = JSON.parse(data);
-                        setTimeout(() => {
-                            next(null, parsedData.name);
-                        }, delay);
-                    });
-                },
-                function (next) {
-                    fs.readFile('./cats/murzic.json', (error, data) => {
-                        var parsedData = JSON.parse(data);
-                        setTimeout(() => {
-                            next(null, parsedData.name);
-                        }, delay);
-                    });
-                }
-            ];
 
             lib.limitParallel(functions, 1, (error, result) => {
                 limitTime = Date.now() - startTime;
